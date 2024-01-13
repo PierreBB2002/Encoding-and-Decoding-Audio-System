@@ -5,8 +5,15 @@ import numpy as np
 import wave
 import pyaudio
 import matplotlib.pyplot as plt
+from tkinter import filedialog
+import scipy.fft
+from scipy.io import wavfile
+from scipy.fft import fft
+from scipy.signal import find_peaks
+from scipy.signal import butter, sosfilt, sosfreqz
 
 
+#phase one
 CHARACTER_FREQUENCIES = {
     'a': (100, 1100, 2500),
     'b': (100, 1100, 3000),
@@ -136,6 +143,108 @@ def listen():
     text = inputText.get(1.0, END).lower()
     engine.say(text)
     engine.runAndWait()
+# Function to upload a file and display the path in the text box
+
+
+#phase two
+
+def upload_file():
+    file_path = filedialog.askopenfilename(filetypes=[("WAV files", "*.wav")])
+    if file_path:
+        inputText.delete(1.0, END)  # Clear the text box if there's any text
+        inputText.insert(END, file_path)  # Show the file path in the text box
+
+
+def decode_using_fourier(file_path):
+    # Read the WAV file
+    rate, data = wavfile.read(file_path)
+    if data.ndim > 1:
+        data = data[:, 0]  # If stereo, just use one channel
+
+    # The duration of each character in samples
+    char_duration_samples = int(rate * 0.04)  # 40ms of samples
+
+    # Split the signal into 40ms chunks
+    chunks = [data[i:i + char_duration_samples] for i in range(0, len(data), char_duration_samples)]
+
+    decoded_text = ''
+
+    for chunk in chunks:
+        # Apply Fourier Transform to each chunk
+        yf = fft(chunk)
+        # Get the absolute values of the frequencies
+        spectrum = np.abs(yf[:len(yf) // 2])
+        # Find peaks to determine the three main frequencies
+        peaks, _ = find_peaks(spectrum, height=rate // 20)
+
+        # Get the frequencies corresponding to the peaks
+        freqs = peaks * rate / len(chunk)
+
+        # Match the frequencies to the character frequencies
+        for char, freq_set in CHARACTER_FREQUENCIES.items():
+            if all(np.isclose(freq, freq_set, atol=10.0) for freq in freqs):
+                decoded_text += char
+                break
+
+    display_result(decoded_text)
+
+
+# Helper function to create a bandpass filter
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    sos = butter(order, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    return sos
+
+
+# Helper function to apply a bandpass filter to a signal
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    sos = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = sosfilt(sos, data)
+    return y
+
+
+# Function to decode an audio signal using bandpass filters
+def decode_using_filters(file_path):
+    rate, data = wavfile.read(file_path)
+    if data.ndim > 1:
+        data = data[:, 0]  # If stereo, just use one channel
+
+    char_duration_samples = int(rate * 0.04)  # 40ms of samples
+    chunks = [data[i:i + char_duration_samples] for i in range(0, len(data), char_duration_samples)]
+
+    decoded_text = ''
+
+    for chunk in chunks:
+        energies = {}
+        for char, freqs in CHARACTER_FREQUENCIES.items():
+            # Apply bandpass filter for each frequency
+            filtered_signal = np.zeros_like(chunk)
+            for freq in freqs:
+                lowcut = freq - 10.0
+                highcut = freq + 10.0
+                filtered_signal += butter_bandpass_filter(chunk, lowcut, highcut, rate, order=2)
+
+            # Calculate the energy of the filtered signal
+            energy = np.sum(filtered_signal ** 2)
+            energies[char] = energy
+
+        # Find the character with the highest energy
+        decoded_char = max(energies, key=energies.get)
+        decoded_text += decoded_char
+
+    display_result(decoded_text)
+
+# Function to display the decoding result
+def display_result(result):
+    resultText.delete(1.0, END)
+    resultText.insert(END, result)
+
+# Add a button to upload files
+upload_button = Button(root, text="Upload WAV File", command=upload_file)
+upload_button.place(x=400, y= 330)
+
+# Add a text box to display the decoding result
+resultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
+resultText.place(x=10, y=380, width=350, height=60)
 
 
 iconImg1 = PhotoImage(file="mainLogo2.png")
@@ -165,6 +274,14 @@ button3.place(x=500, y= 160)
 
 button4 = Button(root, text="Listen", width=15, font="arial 14", command=listen)
 button4.place(x=500, y= 230)
+
+# Button for decoding using Fourier transform
+button_fourier = Button(root, text="Decode with Fourier", width=20, font="arial 14", command=lambda: decode_using_fourier(inputText.get(1.0, END).strip()))
+button_fourier.place(x=500, y= 330)
+
+# Button for decoding using bandpass filters
+button_filters = Button(root, text="Decode with Filters", width=20, font="arial 14", command=lambda: decode_using_filters(inputText.get(1.0, END).strip()))
+button_filters.place(x=500, y= 380)
 
 
 root.mainloop()
