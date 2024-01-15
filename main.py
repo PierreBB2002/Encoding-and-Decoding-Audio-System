@@ -73,13 +73,22 @@ def decodingFFT(filePath):
         yf = fft(chunk)
         # Get the absolute values of the frequencies
         spectrum = np.abs(yf[:len(yf) // 2])
+        # Determine a threshold for peak height dynamically based on the max amplitude
+        threshold = np.max(spectrum) * 0.5  # Adjust the multiplier as needed
+
         # Find peaks to determine the three main frequencies
-        peaks, _ = find_peaks(spectrum, height=rate // 20)
+        peaks, _ = find_peaks(spectrum, height=threshold)
 
         # Get the frequencies corresponding to the peaks
         freqs = peaks * rate / len(chunk)
 
-        # Match the frequencies to the character frequencies
+        # Check if we found at least three peaks, which we need for a valid character encoding
+        if len(freqs) < 3:
+            continue  # Skip this chunk as it doesn't contain enough frequency components
+
+        # Sort the frequencies to match them with the CHARACTER_FREQUENCIES
+        freqs.sort()
+        
         for char, freq_set in CHARACTER_FREQUENCIES.items():
             if len(freqs) == 0:
                 continue  # No frequencies found, move to the next chunk
