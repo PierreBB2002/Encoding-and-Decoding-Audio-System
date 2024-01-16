@@ -1,4 +1,4 @@
-#phase2
+# phase2
 from tkinter import *
 from tkinter.ttk import Combobox
 import pyttsx3
@@ -10,6 +10,7 @@ from tkinter import filedialog
 import scipy.io.wavfile as wav
 from scipy.fft import fft
 from scipy.signal import find_peaks
+arr = np.array([])
 CHARACTER_FREQUENCIES = {
     'a': (100, 1100, 2500),
     'b': (100, 1100, 3000),
@@ -69,6 +70,7 @@ def decodingFFT(filePath):
     decoded_text = ''
 
     for chunk in chunks:
+        global arr
         # Apply Fourier Transform to each chunk
         yf = fft(chunk)
         # Get the absolute values of the frequencies
@@ -81,24 +83,22 @@ def decodingFFT(filePath):
 
         # Get the frequencies corresponding to the peaks
         freqs = peaks * rate / len(chunk)
+        arr = np.append(arr, freqs)
 
         # Check if we found at least three peaks, which we need for a valid character encoding
         if len(freqs) < 3:
             continue  # Skip this chunk as it doesn't contain enough frequency components
 
-        # Sort the frequencies to match them with the CHARACTER_FREQUENCIES
-        freqs.sort()
-        
         for char, freq_set in CHARACTER_FREQUENCIES.items():
             if len(freqs) == 0:
                 continue  # No frequencies found, move to the next chunk
 
-            matching_freqs = [all(np.isclose(freq, freq_set, atol=10.0)) for freq in freqs]
-            if any(matching_freqs):
+    for i in range(0, len(arr)):
+        for char in CHARACTER_FREQUENCIES.keys():
+            if (CHARACTER_FREQUENCIES[char][0] == arr[i] and
+                    CHARACTER_FREQUENCIES[char][1] == arr[i+1] and
+                    CHARACTER_FREQUENCIES[char][2] == arr[i+2]):
                 decoded_text += char
-                print(char)
-                break
-
     display_result(decoded_text)
 
 
@@ -111,33 +111,33 @@ root.configure(bg="#3776ab")
 iconImg1 = PhotoImage(file="mainLogo2.png")
 root.iconphoto(False, iconImg1)
 
-#header
+# header
 header = Frame(root, bg="white", width=850, height=100)
 header.place(x=0, y=0)
 
 Logo = PhotoImage(file="logo1.png")
 Label(header, image=Logo, bg="white").place(x=6, y=7)
-Label(header, text="EchoAlphaEncoder", font="Helvetica 18 bold", bg="white", fg="#333", padx=10, pady=10).place(x=90, y=27)
+Label(header, text="EchoAlphaEncoder", font="Helvetica 18 bold", bg="white", fg="#333", padx=10, pady=10).place(x=90,
+                                                                                                                y=27)
 
 button5 = Button(root, text="Upload Audio", width=15, font="arial 14", command=uploadAudio)
 button5.place(x=500, y=290)
 
-icon2=PhotoImage(file="mainLogo2.png")
-button1=Button(root, text="convert", compound=LEFT,  image=icon2, width=130, font="arial 14 ")
-button1.place(x=30, y= 330)
+icon2 = PhotoImage(file="mainLogo2.png")
+button1 = Button(root, text="convert", compound=LEFT, image=icon2, width=130, font="arial 14 ")
+button1.place(x=30, y=330)
 
-iconSave=PhotoImage(file="save2.png")
-button2=Button(root, text="save",compound=LEFT,  image=iconSave, width=130, font="arial 14 ")
-button2.place(x=200, y= 330)
+iconSave = PhotoImage(file="save2.png")
+button2 = Button(root, text="save", compound=LEFT, image=iconSave, width=130, font="arial 14 ")
+button2.place(x=200, y=330)
 
 button3 = Button(root, text="Generate Signal", width=15, font="arial 14")
-button3.place(x=500, y= 160)
+button3.place(x=500, y=160)
 
 button4 = Button(root, text="Restart", width=15, font="arial 14")
-button4.place(x=500, y= 230)
+button4.place(x=500, y=230)
 
 resultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
 resultText.place(x=10, y=170, width=350, height=60)
-
 
 root.mainloop()
