@@ -1,15 +1,14 @@
 # phase2
 from tkinter import *
-from tkinter.ttk import Combobox
-import pyttsx3
-import numpy as np
-import wave
-import pyaudio
-import matplotlib.pyplot as plt
 from tkinter import filedialog
+
+import numpy as np
 import scipy.io.wavfile as wav
 from scipy.fft import fft
+from scipy.signal import butter, lfilter
 from scipy.signal import find_peaks
+
+# frequency analysis
 arr = np.array([])
 CHARACTER_FREQUENCIES = {
     'a': (100, 1100, 2500),
@@ -101,6 +100,83 @@ def decodingFFT(filePath):
                 decoded_text += char
     display_result(decoded_text)
 
+# bandpass Filters analysis
+def bandpass_filter(signal, sample_rate, frequencies):
+    """
+    Apply bandpass filters to the signal and return filtered signals for each frequency.
+
+    Args:
+        signal (numpy.ndarray): Input audio signal.
+        sample_rate (int): Sampling rate of the audio signal.
+        frequencies (list): List of center frequencies for the bandpass filters.
+
+    Returns:
+        filtered_signals (list): List of filtered signals for each frequency.
+    """
+    filtered_signals = []
+
+    for center_freq in frequencies:
+        # Define filter parameters (adjust as needed)
+        lowcut = center_freq - 50  # Lower cutoff frequency
+        highcut = center_freq + 50  # Upper cutoff frequency
+        nyquist = 0.5 * sample_rate
+        low = lowcut / nyquist
+        high = highcut / nyquist
+        order = 2  # Filter order, using a lower order for a less steep roll-off
+
+        # Design the bandpass filter
+        b, a = butter(order, [low, high], btype='band')
+
+        # Apply the filter to the signal
+        filtered_signal = lfilter(b, a, signal)
+
+        # Append the filtered signal to the list
+        filtered_signals.append(filtered_signal)
+
+    return filtered_signals
+
+
+def decode_filtered_signals(filtered_signals, character_frequencies, rate, chunk_length):
+    decoded_text = ''
+    for signal in filtered_signals:
+        # Apply Fourier Transform to the filtered signal
+        yf = fft(signal)
+        spectrum = np.abs(yf[:len(yf) // 2])
+        freqs = np.linspace(0, rate / 2, len(spectrum))
+
+        # Find peaks in the spectrum
+        peaks, _ = find_peaks(spectrum, height=np.max(spectrum) * 0.5)
+
+        # Check against character frequencies
+        for char, freq_set in character_frequencies.items():
+            if all(any(np.isclose(freq, f, atol=rate/chunk_length) for f in freq_set) for freq in peaks):
+                decoded_text += char
+                break  # Character found
+
+    return decoded_text
+
+
+
+def decodingBandpass(filePath):
+    rate, data = wav.read(filePath)
+    if data.ndim > 1:
+        data = data[:, 0]  # If stereo, just use one channel
+
+    char_duration_samples = int(rate * 0.04)  # 40ms of samples
+    chunks = [data[i:i + char_duration_samples] for i in range(0, len(data), char_duration_samples)]
+
+    decoded_text = ''
+
+    for chunk in chunks:
+        # Apply bandpass filters for each character frequency
+        filtered_signals = bandpass_filter(chunk, rate, [f for freqs in CHARACTER_FREQUENCIES.values() for f in freqs])
+
+        # Decode the characters from the filtered signals
+        decoded_chunk = decode_filtered_signals(filtered_signals, CHARACTER_FREQUENCIES, rate, len(chunk))
+        decoded_text += decoded_chunk
+
+    display_result(decoded_text)
+
 
 root = Tk()
 root.title("DSP project")
@@ -131,8 +207,11 @@ iconSave = PhotoImage(file="save2.png")
 button2 = Button(root, text="save", compound=LEFT, image=iconSave, width=130, font="arial 14 ")
 button2.place(x=200, y=330)
 
-button3 = Button(root, text="Generate Signal", width=15, font="arial 14")
+button3 = Button(root, text="Generate Signal with Frequency Analysis", width=15, font="arial 14")
 button3.place(x=500, y=160)
+
+button_bandpass = Button(root, text="Generate Signal with Bandpass Filter", width=15, font="arial 14")
+button_bandpass.place(x=350, y=330)
 
 button4 = Button(root, text="Restart", width=15, font="arial 14")
 button4.place(x=500, y=230)
