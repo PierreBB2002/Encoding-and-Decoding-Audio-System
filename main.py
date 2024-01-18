@@ -41,17 +41,48 @@ CHARACTER_FREQUENCIES = {
 }
 
 
+global file_path
+file_path = None
+
+def uploadAudio():
+    global file_path
+    file_path = filedialog.askopenfilename(filetypes=[("WAV files", "*.wav")])
+    if file_path:
+        print("Selected file:", file_path)
+
+def on_fft_button_click():
+    global file_path
+    if file_path:
+        decoded_text = decodingFFT(file_path)
+        display_FFT_result(decoded_text)
+    else:
+        print("Please upload an audio file first.")
+
+def on_bandpass_button_click():
+    global file_path
+    if file_path:
+        decoded_text = decode_filtered_signals(file_path, CHARACTER_FREQUENCIES)
+        display_filter_result(decoded_text)
+    else:
+        print("Please upload an audio file first.")
+
 def uploadAudio():
     file_path = filedialog.askopenfilename(filetypes=[("WAV files", "*.wav")])
+
     if file_path:
         # Process the selected audio file (you can add decoding logic here)
         print("Selected file:", file_path)
         decodingFFT(file_path)
 
 
-def display_result(result):
+
+def display_FFT_result(result):
     resultText.delete(1.0, END)
     resultText.insert(END, result)
+
+def display_filter_result(result):
+    filterResultText.delete(1.0, END)
+    filterResultText.insert(END, result)
 
 
 def decodingFFT(filePath):
@@ -98,84 +129,88 @@ def decodingFFT(filePath):
                     CHARACTER_FREQUENCIES[char][1] == arr[i+1] and
                     CHARACTER_FREQUENCIES[char][2] == arr[i+2]):
                 decoded_text += char
-    display_result(decoded_text)
+    display_FFT_result(decoded_text)
 
 # bandpass Filters analysis
+def rms(signal):
+    """
+    Calculate the root mean square of the signal.
+    """
+    return np.sqrt(np.mean(signal ** 2))
+
 def bandpass_filter(signal, sample_rate, frequencies):
     """
-    Apply bandpass filters to the signal and return filtered signals for each frequency.
+    Apply bandpass filters to the signal for each frequency.
 
     Args:
-        signal (numpy.ndarray): Input audio signal.
-        sample_rate (int): Sampling rate of the audio signal.
-        frequencies (list): List of center frequencies for the bandpass filters.
+        signal (numpy.ndarray): The audio signal.
+        sample_rate (int): The sample rate of the audio signal.
+        frequencies (list): List of frequencies to filter around.
 
     Returns:
-        filtered_signals (list): List of filtered signals for each frequency.
+        numpy.ndarray: Array of filtered signals for each frequency.
     """
     filtered_signals = []
 
     for center_freq in frequencies:
-        # Define filter parameters (adjust as needed)
-        lowcut = center_freq - 50  # Lower cutoff frequency
-        highcut = center_freq + 50  # Upper cutoff frequency
+        # Define the frequency range for the bandpass filter
+        lowcut = center_freq - 50  # Lower bound of the frequency range
+        highcut = center_freq + 50  # Upper bound of the frequency range
+
+        # Normalize the frequencies
         nyquist = 0.5 * sample_rate
         low = lowcut / nyquist
         high = highcut / nyquist
-        order = 2  # Filter order, using a lower order for a less steep roll-off
 
         # Design the bandpass filter
-        b, a = butter(order, [low, high], btype='band')
+        b, a = butter(N=2, Wn=[low, high], btype='band')
 
-        # Apply the filter to the signal
+        # Apply the filter
         filtered_signal = lfilter(b, a, signal)
-
-        # Append the filtered signal to the list
         filtered_signals.append(filtered_signal)
 
     return filtered_signals
+def decode_filtered_signals(filePath, character_frequencies):
+    # Read the WAV file
+    rate, data = wav.read(filePath)
+    if data.ndim > 1:
+        data = data[:, 0]  # If stereo, just use one channel
 
+    # Set chunk_length for 40ms of samples
+    chunk_length = int(rate * 0.04)
 
-def decode_filtered_signals(filtered_signals, character_frequencies, rate, chunk_length):
+    # Apply the bandpass filters
+    frequencies = [f for freqs in character_frequencies.values() for f in freqs]
+    filtered_signals = bandpass_filter(data, rate, frequencies)
+
     decoded_text = ''
-    for signal in filtered_signals:
-        # Apply Fourier Transform to the filtered signal
-        yf = fft(signal)
-        spectrum = np.abs(yf[:len(yf) // 2])
-        freqs = np.linspace(0, rate / 2, len(spectrum))
 
-        # Find peaks in the spectrum
-        peaks, _ = find_peaks(spectrum, height=np.max(spectrum) * 0.5)
+    # Iterate over each character frequency set
+    for char, freq_set in character_frequencies.items():
+        char_found = True
+        for freq in freq_set:
+            # Find the index of the filtered signal corresponding to the current frequency
+            index = list(character_frequencies.values()).index(freq_set)
+            signal = filtered_signals[index]
 
-        # Check against character frequencies
-        for char, freq_set in character_frequencies.items():
-            if all(any(np.isclose(freq, f, atol=rate/chunk_length) for f in freq_set) for freq in peaks):
-                decoded_text += char
-                break  # Character found
+            # Calculate the RMS of the signal
+            signal_rms = rms(signal)
+
+            # Define a threshold for detecting presence of the frequency
+            threshold = 0.1  # Adjust as needed
+
+            if signal_rms < threshold:
+                char_found = False
+                break  # Current frequency not found, move to the next character
+
+        if char_found:
+            decoded_text += char
+            break  # Character found, move to the next chunk
 
     return decoded_text
 
 
 
-def decodingBandpass(filePath):
-    rate, data = wav.read(filePath)
-    if data.ndim > 1:
-        data = data[:, 0]  # If stereo, just use one channel
-
-    char_duration_samples = int(rate * 0.04)  # 40ms of samples
-    chunks = [data[i:i + char_duration_samples] for i in range(0, len(data), char_duration_samples)]
-
-    decoded_text = ''
-
-    for chunk in chunks:
-        # Apply bandpass filters for each character frequency
-        filtered_signals = bandpass_filter(chunk, rate, [f for freqs in CHARACTER_FREQUENCIES.values() for f in freqs])
-
-        # Decode the characters from the filtered signals
-        decoded_chunk = decode_filtered_signals(filtered_signals, CHARACTER_FREQUENCIES, rate, len(chunk))
-        decoded_text += decoded_chunk
-
-    display_result(decoded_text)
 
 
 root = Tk()
@@ -207,10 +242,10 @@ iconSave = PhotoImage(file="save2.png")
 button2 = Button(root, text="save", compound=LEFT, image=iconSave, width=130, font="arial 14 ")
 button2.place(x=200, y=330)
 
-button3 = Button(root, text="Generate Signal with Frequency Analysis", width=15, font="arial 14")
+button3 = Button(root, text="Generate Signal with Frequency Analysis", width=15, font="arial 14",command=on_fft_button_click)
 button3.place(x=500, y=160)
 
-button_bandpass = Button(root, text="Generate Signal with Bandpass Filter", width=15, font="arial 14")
+button_bandpass = Button(root, text="Generate Signal with Bandpass Filter", width=15, font="arial 14",command=on_bandpass_button_click)
 button_bandpass.place(x=350, y=330)
 
 button4 = Button(root, text="Restart", width=15, font="arial 14")
@@ -218,5 +253,9 @@ button4.place(x=500, y=230)
 
 resultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
 resultText.place(x=10, y=170, width=350, height=60)
+
+# Add this near your existing widget definitions
+filterResultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
+filterResultText.place(x=10, y=300, width=350, height=60)  # Adjust x, y, width, height as needed
 
 root.mainloop()
