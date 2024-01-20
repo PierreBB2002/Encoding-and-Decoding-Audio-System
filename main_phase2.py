@@ -44,14 +44,10 @@ CHARACTER_FREQUENCIES = {
 global file_path
 file_path = None
 
+
 def uploadAudio():
     global file_path
     file_path = filedialog.askopenfilename(filetypes=[("WAV files", "*.wav")])
-    if file_path:
-        print("Selected file:", file_path)
-
-
-
 
 
 def decodingFFT(filePath):
@@ -100,12 +96,13 @@ def decodingFFT(filePath):
                 decoded_text += char
     return decoded_text
 
+
 # bandpass Filters analysis
 def rms(signal):
-    """
-    Calculate the root mean square of the signal.
-    """
-    return np.sqrt(np.mean(signal ** 2))
+    # calculate the mean square of the signal
+    finalSignal = np.sqrt(np.mean(signal ** 2))
+    return finalSignal
+
 
 def bandpass_filter(signal, sample_rate, frequencies):
     """
@@ -122,9 +119,8 @@ def bandpass_filter(signal, sample_rate, frequencies):
     filtered_signals = []
 
     for center_freq in frequencies:
-        # Define the frequency range for the bandpass filter
-        lowcut = center_freq - 50  # Lower bound of the frequency range
-        highcut = center_freq + 50  # Upper bound of the frequency range
+        lowcut = center_freq - 50  # Lower bound
+        highcut = center_freq + 50  # Upper bound
 
         # Normalize the frequencies
         nyquist = 0.5 * sample_rate
@@ -139,6 +135,8 @@ def bandpass_filter(signal, sample_rate, frequencies):
         filtered_signals.append(filtered_signal)
 
     return filtered_signals
+
+
 def decode_filtered_signals(filePath, character_frequencies):
     # Read the WAV file
     rate, data = wav.read(filePath)
@@ -174,13 +172,15 @@ def decode_filtered_signals(filePath, character_frequencies):
 
     return decoded_text
 
+
 def display_FFT_result(result):
     fftResultText.delete(1.0, END)
     fftResultText.insert(END, result)
+
+
 def display_filter_result(result):
     filterResultText.delete(1.0, END)
     filterResultText.insert(END, result)
-
 
 
 def on_fft_button_click():
@@ -191,6 +191,7 @@ def on_fft_button_click():
     else:
         print("Please upload an audio file first.")
 
+
 def on_bandpass_button_click():
     global file_path
     if file_path:
@@ -198,6 +199,7 @@ def on_bandpass_button_click():
         display_filter_result(decoded_text)
     else:
         print("Please upload an audio file first.")
+
 
 def restart():
     global file_path
@@ -239,7 +241,6 @@ filterResultLabel = Label(root, text="Filter Result", font="arial 14", bg="#3776
 filterResultLabel.place(x=50, y=270)
 filterResultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
 filterResultText.place(x=50, y=300, width=350, height=60)
-
 
 
 # Buttons
