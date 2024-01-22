@@ -1,15 +1,16 @@
+#Joud Hijaz 1200342
+#Pierre Backleh 1201296
+#Christina Saba 1201255
+
 #phase1
 from tkinter import *
-from tkinter.ttk import Combobox
 import pyttsx3
 import numpy as np
 import wave
 import pyaudio
 import matplotlib.pyplot as plt
 from tkinter import filedialog  # Import filedialog for opening/saving files
-from scipy.fft import fft
-from scipy.signal import find_peaks
-from scipy.fft import fftfreq
+
 
 publicVar = 0
 CHARACTER_FREQUENCIES = {
