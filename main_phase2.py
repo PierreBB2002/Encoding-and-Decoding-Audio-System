@@ -1,16 +1,22 @@
+#Joud Hijaz 1200342
+#Pierre Backleh 1201296
+#Christina Saba 1201255
+
 # phase2
+
+# Importing necessary libraries
 from tkinter import *
 from tkinter import filedialog
-
 import numpy as np
 import scipy.io.wavfile as wav
 from scipy.fft import fft
 from scipy.signal import butter, lfilter
 from scipy.signal import find_peaks
 
-# frequency analysis
+# Dictionary to map characters to their respective frequency sets
 arr = np.array([])
 CHARACTER_FREQUENCIES = {
+# Character: (Low frequency, Middle frequency, High frequency)
     'a': (100, 1100, 2500),
     'b': (100, 1100, 3000),
     'c': (100, 1100, 3500),
@@ -40,15 +46,16 @@ CHARACTER_FREQUENCIES = {
     ' ': (500, 1500, 3500)  # Space character
 }
 
-
+# Global variable to hold the file path
 global file_path
 file_path = None
 
-
 def uploadAudio():
+    # Function to upload an audio file
     global file_path
     file_path = filedialog.askopenfilename(filetypes=[("WAV files", "*.wav")])
-
+    if file_path:
+        print("Selected file:", file_path)
 
 def decodingFFT(filePath):
     # Read the WAV file
@@ -80,6 +87,8 @@ def decodingFFT(filePath):
         freqs = peaks * rate / len(chunk)
         arr = np.append(arr, freqs)
 
+        # Decode the character based on the frequency peaks
+
         # Check if we found at least three peaks, which we need for a valid character encoding
         if len(freqs) < 3:
             continue  # Skip this chunk as it doesn't contain enough frequency components
@@ -96,13 +105,10 @@ def decodingFFT(filePath):
                 decoded_text += char
     return decoded_text
 
-
-# bandpass Filters analysis
+# Bandpass Filters analysis
 def rms(signal):
-    # calculate the mean square of the signal
-    finalSignal = np.sqrt(np.mean(signal ** 2))
-    return finalSignal
-
+    # Calculate the root mean square of the signal
+    return np.sqrt(np.mean(signal ** 2))
 
 def bandpass_filter(signal, sample_rate, frequencies):
     """
@@ -119,8 +125,9 @@ def bandpass_filter(signal, sample_rate, frequencies):
     filtered_signals = []
 
     for center_freq in frequencies:
-        lowcut = center_freq - 50  # Lower bound
-        highcut = center_freq + 50  # Upper bound
+        # Define the frequency range for the bandpass filter
+        lowcut = center_freq - 50  # Lower bound of the frequency range
+        highcut = center_freq + 50  # Upper bound of the frequency range
 
         # Normalize the frequencies
         nyquist = 0.5 * sample_rate
@@ -135,8 +142,6 @@ def bandpass_filter(signal, sample_rate, frequencies):
         filtered_signals.append(filtered_signal)
 
     return filtered_signals
-
-
 def decode_filtered_signals(filePath, character_frequencies):
     # Read the WAV file
     rate, data = wav.read(filePath)
@@ -176,11 +181,10 @@ def decode_filtered_signals(filePath, character_frequencies):
 def display_FFT_result(result):
     fftResultText.delete(1.0, END)
     fftResultText.insert(END, result)
-
-
 def display_filter_result(result):
     filterResultText.delete(1.0, END)
     filterResultText.insert(END, result)
+
 
 
 def on_fft_button_click():
@@ -191,7 +195,6 @@ def on_fft_button_click():
     else:
         print("Please upload an audio file first.")
 
-
 def on_bandpass_button_click():
     global file_path
     if file_path:
@@ -199,7 +202,6 @@ def on_bandpass_button_click():
         display_filter_result(decoded_text)
     else:
         print("Please upload an audio file first.")
-
 
 def restart():
     global file_path
@@ -241,6 +243,7 @@ filterResultLabel = Label(root, text="Filter Result", font="arial 14", bg="#3776
 filterResultLabel.place(x=50, y=270)
 filterResultText = Text(root, font="arial 14", bg="white", relief=GROOVE, wrap=WORD)
 filterResultText.place(x=50, y=300, width=350, height=60)
+
 
 
 # Buttons
